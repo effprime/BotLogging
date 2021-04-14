@@ -4,9 +4,13 @@ BotLog is a logging interface module for Discord bots. It allows bot developers 
 
 # How to use
 
+```bash
+pip install botlog
+```
+
 ## Logging Levels
 
-The bot logging interface is designed to simulate the standard Python logging levels: `debug`, `info`, `warning`, and `error`. 
+The logging interface is designed to simulate the standard Python logging levels: `debug`, `info`, `warning`, and `error`. 
 
 ### Debug / Info / Warning
 
@@ -37,7 +41,13 @@ async def run(ctx):
     try:
         await some_function()
     except Exception as e:
-        await logger.error("Could not execute some_function!", exception=e, context=context, channel=logging_channel, critical=True)
+        await logger.error(
+            "Could not execute some_function!", 
+            exception=e, 
+            context=context, 
+            channel=logging_channel, 
+            critical=True
+        )
 
     await ctx.send(content=input)
 ```
@@ -71,7 +81,7 @@ def setup_bot_config(bot, logger):
 
 Sending to Discord naturally makes one afraid of being rate limited by the Discord API. Unlike in the previous examples where the logger handles events right away, you can provide a `queue_wait` input (in seconds) to the constructor to store events in an in-memory queue, picking them off one-by-one.
 
-```
+```py
 logger = botlog.BotLogger(bot=bot, name="mybot", queue_wait=1)
 ```
 
