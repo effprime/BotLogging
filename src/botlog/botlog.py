@@ -11,6 +11,79 @@ import discord
 import munch
 from discord.ext import commands
 
+# pylint: disable=too-few-public-methods
+class ErrorResponse:
+    """Object for generating a custom error message from an exception.
+
+    parameters:
+        message_format (str): the substition formatted (%s) message
+        lookups (Union[str, list]): the lookup objects to reference
+    """
+
+    DEFAULT_MESSAGE = "I ran into an error processing your command"
+
+    def __init__(self, message_format=None, lookups=None):
+        self.message_format = message_format
+
+        if lookups:
+            lookups = lookups if isinstance(lookups, list) else [lookups]
+        else:
+            lookups = []
+
+        self.lookups = []
+        for lookup in lookups:
+            try:
+                self.lookups.append(munch.munchify(lookup))
+            except Exception:
+                # abort message formatting
+                self.message_format = None
+
+    def get_message(self, exception=None):
+        """Gets a message from a given exception.
+
+        If no exception is provided, gets the default message.
+
+        parameters:
+            exception (Exception): the exception to reference
+        """
+        if not self.message_format:
+            return self.DEFAULT_MESSAGE
+
+        values = []
+        for lookup in self.lookups:
+            value = getattr(exception, lookup.key, None)
+            if not value:
+                return self.DEFAULT_MESSAGE
+
+            if lookup.get("wrapper"):
+                try:
+                    value = lookup.wrapper(value)
+                except Exception:
+                    pass
+
+            values.append(value)
+
+        return self.message_format % tuple(values)
+
+
+class DelayedLog:
+    """Represents log data to be sent.
+
+    parameters:
+        level (str): the log level (eg. INFO, DEBUG, WARNING, EVENT)
+        message (str): the log message
+        args (tuple): optional positional arguments
+        kwargs (dict): optional keyword arguments
+    """
+
+    # pylint: disable=redefined-outer-name
+    def __init__(self, level, *args, log_message=None, **kwargs):
+        self.level = level
+        self.message = log_message
+        self.args = args
+        self.kwargs = kwargs
+        self.kwargs["time"] = datetime.datetime.utcnow()
+
 
 class BotLogger:
     """Logging channel interface for the bot.
@@ -1158,76 +1231,3 @@ class BotLogger:
                 self.console.error(f"Could not read from log queue: {exception}")
 
             await asyncio.sleep(self.queue_wait)
-
-# pylint: disable=too-few-public-methods
-class ErrorResponse:
-    """Object for generating a custom error message from an exception.
-
-    parameters:
-        message_format (str): the substition formatted (%s) message
-        lookups (Union[str, list]): the lookup objects to reference
-    """
-
-    DEFAULT_MESSAGE = "I ran into an error processing your command"
-
-    def __init__(self, message_format=None, lookups=None):
-        self.message_format = message_format
-
-        if lookups:
-            lookups = lookups if isinstance(lookups, list) else [lookups]
-        else:
-            lookups = []
-
-        self.lookups = []
-        for lookup in lookups:
-            try:
-                self.lookups.append(munch.munchify(lookup))
-            except Exception:
-                # abort message formatting
-                self.message_format = None
-
-    def get_message(self, exception=None):
-        """Gets a message from a given exception.
-
-        If no exception is provided, gets the default message.
-
-        parameters:
-            exception (Exception): the exception to reference
-        """
-        if not self.message_format:
-            return self.DEFAULT_MESSAGE
-
-        values = []
-        for lookup in self.lookups:
-            value = getattr(exception, lookup.key, None)
-            if not value:
-                return self.DEFAULT_MESSAGE
-
-            if lookup.get("wrapper"):
-                try:
-                    value = lookup.wrapper(value)
-                except Exception:
-                    pass
-
-            values.append(value)
-
-        return self.message_format % tuple(values)
-
-
-class DelayedLog:
-    """Represents log data to be sent.
-
-    parameters:
-        level (str): the log level (eg. INFO, DEBUG, WARNING, EVENT)
-        message (str): the log message
-        args (tuple): optional positional arguments
-        kwargs (dict): optional keyword arguments
-    """
-
-    # pylint: disable=redefined-outer-name
-    def __init__(self, level, *args, log_message=None, **kwargs):
-        self.level = level
-        self.message = log_message
-        self.args = args
-        self.kwargs = kwargs
-        self.kwargs["time"] = datetime.datetime.utcnow()
