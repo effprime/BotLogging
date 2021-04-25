@@ -2,8 +2,6 @@
 
 BotLog is a logging interface module for Discord bots. It allows bot developers to log to Discord channels along with the standard terminal console, providing an easy way to track events and errors.
 
-# How to use
-
 ```bash
 pip install botlog
 ```
