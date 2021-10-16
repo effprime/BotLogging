@@ -1,2 +1,2 @@
-discord==1.7.1
+pycord==1.7.3
 munch==2.5.0
