@@ -1,1 +1,1 @@
-from .botlog import BotLogger
+from .logger import BotLogger
