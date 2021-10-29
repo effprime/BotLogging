@@ -50,8 +50,6 @@ async def run(ctx):
     await ctx.send(content=input)
 ```
 
-In addition to the logging, the logger will attempt to map `discord.ext.commands.CommandError` child exceptions to an appropriate user response. For instance, if a user doesn't provide an arg that is required, the logger can figure that out and tell the user with a message like "You did not provide the command argument: `user: discord.member.Member`"
-
 ### Event
 
 Additionally, there is an `event` level for handling Discord events.
