@@ -9,61 +9,7 @@ import traceback
 
 import discord
 import munch
-from discord.ext import commands
-
-# pylint: disable=too-few-public-methods
-class ErrorResponse:
-    """Object for generating a custom error message from an exception.
-
-    parameters:
-        message_format (str): the substition formatted (%s) message
-        lookups (Union[str, list]): the lookup objects to reference
-    """
-
-    DEFAULT_MESSAGE = "I ran into an error processing your command"
-
-    def __init__(self, message_format=None, lookups=None):
-        self.message_format = message_format
-
-        if lookups:
-            lookups = lookups if isinstance(lookups, list) else [lookups]
-        else:
-            lookups = []
-
-        self.lookups = []
-        for lookup in lookups:
-            try:
-                self.lookups.append(munch.munchify(lookup))
-            except Exception:
-                # abort message formatting
-                self.message_format = None
-
-    def get_message(self, exception=None):
-        """Gets a message from a given exception.
-
-        If no exception is provided, gets the default message.
-
-        parameters:
-            exception (Exception): the exception to reference
-        """
-        if not self.message_format:
-            return self.DEFAULT_MESSAGE
-
-        values = []
-        for lookup in self.lookups:
-            value = getattr(exception, lookup.key, None)
-            if not value:
-                return self.DEFAULT_MESSAGE
-
-            if lookup.get("wrapper"):
-                try:
-                    value = lookup.wrapper(value)
-                except Exception:
-                    pass
-
-            values.append(value)
-
-        return self.message_format % tuple(values)
+import botlog.embed as embed_lib
 
 
 class DelayedLog:
@@ -94,120 +40,13 @@ class BotLogger:
         queue (bool): True if a queue should be used for writing logs
     """
 
-    COMMAND_ERROR_RESPONSE_TEMPLATES = {
-        # ConversionError
-        commands.ConversionError: ErrorResponse(
-            "Could not convert argument to: `%s`", {"key": "converter"}
-        ),
-        # UserInputError
-        # These are mostly raised by conversion failure
-        commands.MissingRequiredArgument: ErrorResponse(
-            "You did not provide the command argument: `%s`", {"key": "param"}
-        ),
-        commands.TooManyArguments: ErrorResponse(
-            "You provided too many arguments to that command"
-        ),
-        commands.MessageNotFound: ErrorResponse(
-            'I couldn\'t find the message: "%s"', {"key": "argument"}
-        ),
-        commands.MemberNotFound: ErrorResponse(
-            'I coudn\'t find the server member: "%s"', {"key": "argument"}
-        ),
-        commands.UserNotFound: ErrorResponse(
-            'I coudn\'t find the user: "%s"', {"key": "argument"}
-        ),
-        commands.ChannelNotFound: ErrorResponse(
-            'I couldn\'t find the channel: "%s"', {"key": "argument"}
-        ),
-        commands.ChannelNotReadable: ErrorResponse(
-            'I can\'t read the channel: "%s"', {"key": "argument"}
-        ),
-        commands.ChannelNotReadable: ErrorResponse(
-            'I can\'t use the color: "%s"', {"key": "argument"}
-        ),
-        commands.RoleNotFound: ErrorResponse(
-            'I couldn\'t find the role: "%s"', {"key": "argument"}
-        ),
-        commands.BadInviteArgument: ErrorResponse("I can't use that invite"),
-        commands.EmojiNotFound: ErrorResponse(
-            'I couldn\'t find the emoji: "%s"', {"key": "argument"}
-        ),
-        commands.PartialEmojiConversionFailure: ErrorResponse(
-            'I couldn\'t use the emoji: "%s"', {"key": "argument"}
-        ),
-        commands.BadBoolArgument: ErrorResponse(
-            'I couldn\'t process the boolean: "%s"', {"key": "argument"}
-        ),
-        commands.UnexpectedQuoteError: ErrorResponse(
-            "I wasn't able to understand your command because of an unexpected quote (%s)",
-            {"key": "quote"},
-        ),
-        commands.InvalidEndOfQuotedStringError: ErrorResponse(
-            "You provided an unreadable char after your quote: `%s`",
-            {"key": "char"},
-        ),
-        commands.ExpectedClosingQuoteError: ErrorResponse(
-            "You did not close your quote with a `%s`",
-            {"key": "close_quotes"},
-        ),
-        # CheckFailure
-        commands.CheckFailure: ErrorResponse(
-            "That command can't be ran in this context"
-        ),
-        commands.CheckAnyFailure: ErrorResponse(
-            "That command can't be ran in this context"
-        ),
-        commands.PrivateMessageOnly: ErrorResponse(
-            "That's only allowed in private messages"
-        ),
-        commands.NoPrivateMessage: ErrorResponse(
-            "That's only allowed in server channels"
-        ),
-        commands.NotOwner: ErrorResponse("Only the bot owner can do that"),
-        commands.MissingPermissions: ErrorResponse(
-            "I am unable to do that because you lack the permission(s): `%s`",
-            {"key": "missing_perms"},
-        ),
-        commands.BotMissingPermissions: ErrorResponse(
-            "I am unable to do that because I lack the permission(s): `%s`",
-            {"key": "missing_perms"},
-        ),
-        commands.MissingRole: ErrorResponse(
-            "I am unable to do that because you lack the role: `%s`",
-            {"key": "missing_role"},
-        ),
-        commands.BotMissingRole: ErrorResponse(
-            "I am unable to do that because I lack the role: `%s`",
-            {"key": "missing_role"},
-        ),
-        commands.MissingAnyRole: ErrorResponse(
-            "I am unable to do that because you lack the role(s): `%s`",
-            {"key": "missing_roles"},
-        ),
-        commands.BotMissingAnyRole: ErrorResponse(
-            "I am unable to do that because I lack the role(s): `%s`",
-            {"key": "missing_roles"},
-        ),
-        commands.NSFWChannelRequired: ErrorResponse(
-            "I can't do that because the target channel is not marked NSFW"
-        ),
-        # DisabledCommand
-        commands.DisabledCommand: ErrorResponse("That command is disabled"),
-        # CommandOnCooldown
-        commands.CommandOnCooldown: ErrorResponse(
-            "That command is on cooldown for you. Try again in %s seconds",
-            {"key": "retry_after", "wrapper": int},
-        ),
-    }
-
-    IGNORED_ERRORS = set([commands.CommandNotFound])
     # this defaults to False because most logs shouldn't send out
     DEFAULT_LOG_SEND = False
     # this defaults to True because most error logs should send out
     DEFAULT_ERROR_LOG_SEND = True
 
-    def __init__(self, bot=None, name="root", queue_wait=None, send=True):
-        self.bot = bot
+    def __init__(self, **kwargs):
+        self.bot = kwargs.get("bot")
 
         try:
             self.debug_mode = bool(int(os.environ.get("DEBUG", 0)))
@@ -215,14 +54,16 @@ class BotLogger:
             self.debug_mode = False
 
         # pylint: disable=using-constant-test
-        logging.basicConfig(level=logging.DEBUG if self.debug_mode else logging.INFO)
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug_mode else logging.INFO)
 
-        self.console = logging.getLogger(name)
+        self.console = logging.getLogger(kwargs.get("name", "root"))
 
-        self.queue_wait = queue_wait
-        self.send_queue = asyncio.Queue(maxsize=1000) if queue_wait else None
+        self.queue_wait = kwargs.get("queue_wait")
+        self.send_queue = asyncio.Queue(
+            maxsize=1000) if self.queue_wait else None
 
-        self.send = send
+        self.send = kwargs.get("send")
 
         if self.queue_wait:
             self.bot.loop.create_task(self.log_from_queue())
@@ -276,7 +117,8 @@ class BotLogger:
         """
         if self.queue_wait:
             await self.send_queue.put(
-                DelayedLog(level="warning", log_message=message, *args, **kwargs)
+                DelayedLog(level="warning",
+                           log_message=message, *args, **kwargs)
             )
             return
 
@@ -316,7 +158,7 @@ class BotLogger:
             )
             return
 
-        embed = self.generate_log_embed(message, level_)
+        embed = embed_lib.generate_log_embed(message, level_)
         embed.timestamp = kwargs.get("time", datetime.datetime.utcnow())
 
         try:
@@ -375,7 +217,8 @@ class BotLogger:
             target = await self.bot.get_owner()
 
         if not target:
-            self.console.warning("Could not determine Discord target to send EVENT log")
+            self.console.warning(
+                "Could not determine Discord target to send EVENT log")
             return
 
         embed = event_data.get("embed")
@@ -399,17 +242,13 @@ class BotLogger:
             channel (int): the ID of the channel to send the log to
             critical (bool): True if the critical error handler should be invoked
         """
-        # if this is a not command error response, we can queue it for later
-        if not kwargs.get("context") and self.queue_wait:
+        if self.queue_wait:
             await self.send_queue.put(
                 DelayedLog(level="error", log_message=message, *args, **kwargs)
             )
             return
-
         await self.handle_error_log(message, *args, **kwargs)
 
-    # this really needs to be split up lol
-    # pylint: disable=too-many-return-statements,too-many-branches,too-many-locals
     async def handle_error_log(self, message, *args, **kwargs):
         """Handles error logging.
 
@@ -420,52 +259,14 @@ class BotLogger:
             channel (int): the ID of the channel to send the log to
             critical (bool): True if the critical error handler should be invoked
         """
-        ctx = kwargs.get("context", None)
         exception = kwargs.get("exception", None)
         critical = kwargs.get("critical")
-        console_only = self._is_console_only(kwargs, is_error=True)
-
         channel_id = kwargs.get("channel", None)
+        console_only = self._is_console_only(kwargs, is_error=True)
 
         self.console.error(message)
 
-        # command error
-        error_message = None
-        if ctx and exception:
-            #  begin original Discord.py logic
-            if self.bot.extra_events.get("on_command_error", None):
-                return
-            if hasattr(ctx.command, "on_error"):
-                return
-            cog = ctx.cog
-            if cog:
-                # pylint: disable=protected-access
-                if (
-                    commands.Cog._get_overridden_method(cog.cog_command_error)
-                    is not None
-                ):
-                    return
-            # end original Discord.py logic
-
-            message_template = self.COMMAND_ERROR_RESPONSE_TEMPLATES.get(
-                exception.__class__, ""
-            )
-            # see if we have mapped this error to no response (None)
-            # or if we have added it to the global ignore list of errors
-            if message_template is None or exception.__class__ in self.IGNORED_ERRORS:
-                return
-            # otherwise set it a default error message
-            if message_template == "":
-                message_template = ErrorResponse()
-
-            error_message = message_template.get_message(exception)
-
-            await ctx.send(f"{ctx.author.mention} {error_message}")
-
         if console_only:
-            return
-
-        if type(exception) in self.IGNORED_ERRORS:
             return
 
         exception_string = "".join(
@@ -473,11 +274,9 @@ class BotLogger:
                 type(exception), exception, exception.__traceback__
             )
         )
-
-        print(exception_string)
         exception_string = exception_string[:1992]
 
-        embed = self.generate_error_embed(message, ctx, error_message)
+        embed = embed_lib.generate_log_embed(message, "error")
         embed.timestamp = kwargs.get("time", datetime.datetime.utcnow())
 
         if channel_id:
@@ -494,7 +293,8 @@ class BotLogger:
             content = target.mention if critical else None
 
         if not target:
-            self.console.warning("Could not determine Discord target to send ERROR log")
+            self.console.warning(
+                "Could not determine Discord target to send ERROR log")
             return
 
         try:
@@ -515,11 +315,9 @@ class BotLogger:
         # check if sending is disabled globally
         if not self.send:
             return True
-
         default_send = (
             self.DEFAULT_ERROR_LOG_SEND if is_error else self.DEFAULT_LOG_SEND
         )
-
         return not kwargs.get("send", default_send)
 
     # pylint: disable=inconsistent-return-statements
@@ -534,7 +332,8 @@ class BotLogger:
 
         # hacky AF but I love it
         render_func_name = f"render_{event_type}_event"
-        render_func = getattr(self, render_func_name, self.render_default_event)
+        render_func = getattr(self, render_func_name,
+                              self.render_default_event)
 
         kwargs["event_type"] = event_type
 
@@ -546,9 +345,6 @@ class BotLogger:
             )
             message, embed = self.render_default_event(*args, **kwargs)
 
-        if embed:
-            embed.set_thumbnail(url=self.bot.user.avatar_url)
-
         return {"message": message, "embed": embed}
 
     def render_default_event(self, *args, **kwargs):
@@ -556,7 +352,7 @@ class BotLogger:
         event_type = kwargs.get("event_type")
 
         message = f"New event: {event_type}"
-        embed = discord.Embed(title=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         return message, embed
 
@@ -565,14 +361,13 @@ class BotLogger:
         ctx = kwargs.get("context", kwargs.get("ctx"))
         server_text = self.get_server_text(ctx)
 
-        sliced_content = ctx.message.content[0:255]
+        sliced_content = f"Command detected: `{ctx.message.content[:100]}`"
         message = f"Command detected: {sliced_content}"
 
-        embed = discord.Embed(
-            title="Command detected", description=sliced_content
-        )
+        embed = embed_lib.generate_log_embed(sliced_content, "event")
         embed.add_field(name="User", value=ctx.author)
-        embed.add_field(name="Channel", value=getattr(ctx.channel, "name", "DM"))
+        embed.add_field(name="Channel", value=getattr(
+            ctx.channel, "name", "DM"))
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -584,7 +379,7 @@ class BotLogger:
 
         message = f"Message with ID {message_object.id} deleted"
 
-        embed = discord.Embed(title="Message deleted", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Content", value=message_object.content or "None")
         embed.add_field(name="Author", value=message_object.author)
         embed.add_field(
@@ -607,16 +402,13 @@ class BotLogger:
 
         message = f"Message edit detected on message with ID {before.id}"
 
-        if diff:
-            embed_title = ",".join(k.upper() for k in diff) + " updated for message"
-        else:
-            embed_title = "Message updated"
-        embed = discord.Embed(title=embed_title, description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed = self.add_diff_fields(embed, diff)
 
         embed.add_field(name="Author", value=before.author)
-        embed.add_field(name="Channel", value=getattr(before.channel, "name", "DM"))
+        embed.add_field(name="Channel", value=getattr(
+            before.channel, "name", "DM"))
         embed.add_field(
             name="Server",
             value=server_text,
@@ -638,9 +430,7 @@ class BotLogger:
 
         message = f"{len(messages)} messages bulk deleted!"
 
-        embed = discord.Embed(
-            title="Bulk message delete", description=message
-        )
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Channels", value=",".join(unique_channels))
         embed.add_field(name="Servers", value=",".join(unique_servers))
 
@@ -654,10 +444,11 @@ class BotLogger:
 
         message = f"Reaction added to message with ID {reaction.message.id} by user with ID {user.id}"
 
-        embed = discord.Embed(title="Reaction added", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Emoji", value=reaction.emoji)
         embed.add_field(name="User", value=user)
-        embed.add_field(name="Message", value=reaction.message.content or "None")
+        embed.add_field(
+            name="Message", value=reaction.message.content or "None")
         embed.add_field(name="Message Author", value=reaction.message.author)
         embed.add_field(
             name="Channel", value=getattr(reaction.message.channel, "name", "DM")
@@ -674,10 +465,11 @@ class BotLogger:
 
         message = f"Reaction removed from message with ID {reaction.message.id} by user with ID {user.id}"
 
-        embed = discord.Embed(title="Reaction removed", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Emoji", value=reaction.emoji)
         embed.add_field(name="User", value=user)
-        embed.add_field(name="Message", value=reaction.message.content or "None")
+        embed.add_field(
+            name="Message", value=reaction.message.content or "None")
         embed.add_field(name="Message Author", value=reaction.message.author)
         embed.add_field(
             name="Channel", value=getattr(reaction.message.channel, "name", "DM")
@@ -698,11 +490,12 @@ class BotLogger:
         for reaction in reactions:
             unique_emojis.add(reaction.emoji)
 
-        embed = discord.Embed(title="Reactions cleared", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Emojis", value=",".join(unique_emojis))
         embed.add_field(name="Message", value=message.content or "None")
         embed.add_field(name="Message Author", value=message.author)
-        embed.add_field(name="Channel", value=getattr(message.channel, "name", "DM"))
+        embed.add_field(name="Channel", value=getattr(
+            message.channel, "name", "DM"))
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -716,7 +509,7 @@ class BotLogger:
             f"Channel with ID {channel.id} deleted in guild with ID {channel.guild.id}"
         )
 
-        embed = discord.Embed(title="Channel deleted", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed.add_field(name="Channel Name", value=channel.name)
         embed.add_field(name="Server", value=server_text)
@@ -732,7 +525,7 @@ class BotLogger:
             f"Channel with ID {channel.id} created in guild with ID {channel.guild.id}"
         )
 
-        embed = discord.Embed(title="Channel created", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed.add_field(name="Channel Name", value=channel.name)
         embed.add_field(name="Server", value=server_text)
@@ -759,12 +552,7 @@ class BotLogger:
             f"Channel with ID {before.id} modified in guild with ID {before.guild.id}"
         )
 
-        if diff:
-            embed_title = ",".join(k.upper() for k in diff) + " updated for channel"
-        else:
-            embed_title = "Channel updated"
-
-        embed = discord.Embed(title=embed_title, description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed = self.add_diff_fields(embed, diff)
 
@@ -781,9 +569,7 @@ class BotLogger:
 
         message = f"Channel pins updated in channel with ID {channel.id} in guild with ID {channel.guild.id}"
 
-        embed = discord.Embed(
-            title="Channel pins updated", description=message
-        )
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed.add_field(name="Channel Name", value=channel.name)
         embed.add_field(name="Server", value=server_text)
@@ -797,9 +583,7 @@ class BotLogger:
 
         message = f"Integrations updated in guild with ID {guild.id}"
 
-        embed = discord.Embed(
-            title="Integrations updated", description=message
-        )
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -811,7 +595,7 @@ class BotLogger:
 
         message = f"Webooks updated for channel with ID {channel.id} in guild with ID {channel.guild.id}"
 
-        embed = discord.Embed(title="Webhooks updated", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Channel", value=channel.name)
         embed.add_field(name="Server", value=server_text)
 
@@ -825,9 +609,7 @@ class BotLogger:
         message = (
             f"Member with ID {member.id} has joined guild with ID {member.guild.id}"
         )
-        embed = discord.Embed(
-            title="Member joined guild", description=message
-        )
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed.add_field(name="Member", value=member)
         embed.add_field(name="Server", value=server_text)
@@ -840,9 +622,7 @@ class BotLogger:
         server_text = self.get_server_text(member)
 
         message = f"Member with ID {member.id} has left guild with ID {member.guild.id}"
-        embed = discord.Embed(
-            title="Member removed from guild", description=message
-        )
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed.add_field(name="Member", value=member)
         embed.add_field(name="Server", value=server_text)
@@ -863,8 +643,7 @@ class BotLogger:
         )
 
         if diff:
-            embed_title = ",".join(k.upper() for k in diff) + " updated for member"
-            embed = discord.Embed(title=embed_title, description=message)
+            embed = embed_lib.generate_log_embed(message, "event")
 
             embed = self.add_diff_fields(embed, diff)
 
@@ -883,7 +662,7 @@ class BotLogger:
 
         message = f"Joined guild with ID {guild.id}"
 
-        embed = discord.Embed(title="Guild joined", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -895,7 +674,7 @@ class BotLogger:
 
         message = f"Left guild with ID {guild.id}"
 
-        embed = discord.Embed(title="Guild left", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -932,11 +711,7 @@ class BotLogger:
 
         message = f"Guild with ID {before.id} updated"
 
-        if diff:
-            embed_title = ",".join(k.upper() for k in diff) + " updated for guild"
-        else:
-            embed_title = "Guild updated"
-        embed = discord.Embed(title=embed_title, description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed = self.add_diff_fields(embed, diff)
 
@@ -953,7 +728,7 @@ class BotLogger:
             f"New role with name {role.name} added to guild with ID {role.guild.id}"
         )
 
-        embed = discord.Embed(title="Role created", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -967,7 +742,7 @@ class BotLogger:
             f"Role with name {role.name} deleted from guild with ID {role.guild.id}"
         )
 
-        embed = discord.Embed(title="Role deleted", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -978,19 +753,15 @@ class BotLogger:
         after = kwargs.get("after")
         server_text = self.get_server_text(before)
 
-        attrs = ["color", "mentionable", "name", "permissions", "position", "tags"]
+        attrs = ["color", "mentionable", "name",
+                 "permissions", "position", "tags"]
         diff = self.get_object_diff(before, after, attrs)
 
         message = (
             f"Role with name {before.name} updated in guild with ID {before.guild.id}"
         )
 
-        if diff:
-            embed_title = ",".join(k.upper() for k in diff) + " updated for role"
-        else:
-            embed_title = "Role updated"
-
-        embed = discord.Embed(title=embed_title, description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
 
         embed = self.add_diff_fields(embed, diff)
 
@@ -1007,9 +778,7 @@ class BotLogger:
 
         message = f"Emojis updated in guild with ID {guild.id}"
 
-        embed = discord.Embed(
-            title="Guild emojis updated", description=message
-        )
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="Server", value=server_text)
 
         return message, embed
@@ -1022,7 +791,7 @@ class BotLogger:
 
         message = f"User with ID {user.id} banned from guild with ID {guild.id}"
 
-        embed = discord.Embed(title="Member banned", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="User", value=user)
         embed.add_field(name="Server", value=server_text)
 
@@ -1036,7 +805,7 @@ class BotLogger:
 
         message = f"User with ID {user.id} unbanned from guild with ID {guild.id}"
 
-        embed = discord.Embed(title="Member unbanned", description=message)
+        embed = embed_lib.generate_log_embed(message, "event")
         embed.add_field(name="User", value=user)
         embed.add_field(name="Server", value=server_text)
 
@@ -1107,67 +876,6 @@ class BotLogger:
 
         return embed
 
-    def generate_log_embed(self, message, level_):
-        """Wrapper for generated the log embed.
-
-        parameters:
-            message (str): the message
-            level (str): the logging level
-        """
-        embed = discord.Embed(
-            title=f"Logging.{level_.upper()}", description=message
-        )
-
-        embed.set_thumbnail(url=self.bot.user.avatar_url)
-
-        return embed
-
-    def generate_error_embed(self, message, context=None, error_message=None):
-        """Wrapper for generating the error embed.
-
-        parameters:
-            message (str): the message associated with the error (eg. message)
-            context (discord.ext.Context): the context associated with the exception
-            error_message (str): the error message sent to the user
-        """
-        embed = discord.Embed(title="Logging.ERROR", description=message)
-
-        # inject context data if relevant
-        if context:
-            command = getattr(context, "command", object())
-            cog = getattr(command, "cog", object())
-            user = getattr(context, "author", object())
-
-            embed.add_field(
-                name="Plugin",
-                value=getattr(cog, "PLUGIN_NAME", "*Unknown*"),
-                inline=False,
-            )
-            embed.add_field(
-                name="Cog",
-                value=getattr(cog, "qualified_name", "*Unknown*"),
-                inline=False,
-            )
-            embed.add_field(
-                name="Command",
-                value=getattr(command, "name", "*Unknown*"),
-                inline=False,
-            )
-            embed.add_field(
-                name="User",
-                value=getattr(user, "mention", None)
-                or getattr(user, "display_name", "*Unknown*"),
-                inline=False,
-            )
-            embed.add_field(
-                name="Response",
-                value=error_message or "*Unknown*",
-            )
-
-        embed.set_thumbnail(url=self.bot.user.avatar_url)
-
-        return embed
-
     async def log_from_queue(self):
         """Logs from the in-memory log queue.
 
@@ -1175,59 +883,63 @@ class BotLogger:
         """
         while True:
             try:
-                log_data = await self.send_queue.get()
-                if not log_data:
-                    continue
-
-                if log_data.level == "info":
-                    await self.handle_generic_log(
-                        log_data.message,
-                        "info",
-                        self.console.info,
-                        *log_data.args,
-                        **log_data.kwargs,
-                    )
-
-                elif log_data.level == "debug":
-                    await self.handle_generic_log(
-                        log_data.message,
-                        "debug",
-                        self.console.debug,
-                        *log_data.args,
-                        **log_data.kwargs,
-                    )
-
-                elif log_data.level == "warning":
-                    await self.handle_generic_log(
-                        log_data.message,
-                        "warning",
-                        self.console.warning,
-                        *log_data.args,
-                        **log_data.kwargs,
-                    )
-
-                elif log_data.level == "event":
-                    event_type = log_data.kwargs.pop("event_type", None)
-                    if not event_type:
-                        raise AttributeError(
-                            "Unable to get event_type from event log data"
-                        )
-
-                    await self.handle_event_log(
-                        event_type, *log_data.args, **log_data.kwargs
-                    )
-
-                elif log_data.level == "error":
-                    await self.handle_error_log(
-                        log_data.message, *log_data.args, **log_data.kwargs
-                    )
-
-                else:
-                    self.console.warning(
-                        f"Received unprocessable log level: {log_data.level}"
-                    )
-
+                self.handle_queue_log()
             except Exception as exception:
-                self.console.error(f"Could not read from log queue: {exception}")
-
+                self.console.error(
+                    f"Could not read from log queue: {exception}")
             await asyncio.sleep(self.queue_wait)
+
+    async def handle_queue_log(self):
+        """Handles a log from the queue.
+        """
+        log_data = await self.send_queue.get()
+        if not log_data:
+            return
+
+        if log_data.level == "info":
+            await self.handle_generic_log(
+                log_data.message,
+                "info",
+                self.console.info,
+                *log_data.args,
+                **log_data.kwargs,
+            )
+
+        elif log_data.level == "debug":
+            await self.handle_generic_log(
+                log_data.message,
+                "debug",
+                self.console.debug,
+                *log_data.args,
+                **log_data.kwargs,
+            )
+
+        elif log_data.level == "warning":
+            await self.handle_generic_log(
+                log_data.message,
+                "warning",
+                self.console.warning,
+                *log_data.args,
+                **log_data.kwargs,
+            )
+
+        elif log_data.level == "event":
+            event_type = log_data.kwargs.pop("event_type", None)
+            if not event_type:
+                raise AttributeError(
+                    "Unable to get event_type from event log data"
+                )
+
+            await self.handle_event_log(
+                event_type, *log_data.args, **log_data.kwargs
+            )
+
+        elif log_data.level == "error":
+            await self.handle_error_log(
+                log_data.message, *log_data.args, **log_data.kwargs
+            )
+
+        else:
+            self.console.warning(
+                f"Received unprocessable log level: {log_data.level}"
+            )
