@@ -883,7 +883,7 @@ class BotLogger:
         """
         while True:
             try:
-                self.handle_queue_log()
+                await self.handle_queue_log()
             except Exception as exception:
                 self.console.error(
                     f"Could not read from log queue: {exception}")
