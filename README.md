@@ -1,9 +1,9 @@
-# BotLog
+# BotLogging
 
-BotLog is a logging interface module for Discord bots. It allows bot developers to log to Discord channels along with the standard terminal console, providing an easy way to track events and errors.
+BotLogging is a logging package for Discord bots. It allows bot developers to log to Discord channels along with the standard terminal console, providing an easy way to track events and errors.
 
 ```bash
-pip install botlog
+pip install botlogging
 ```
 
 ## Logging Levels
@@ -16,11 +16,11 @@ The first three levels by default do *not* send to Discord. However, setting `se
 
 ```py
 from discord.ext import commands
-import botlog
+import botlogging
 
 token = ""
 bot = commands.Bot(token)
-logger = botlog.BotLogger(bot=bot, name="mybot")
+logger = botlogging.BotLogger(bot=bot, name="mybot")
 logging_channel = 818657960038250216
 
 @bot.command(name="echo")
@@ -59,3 +59,28 @@ def setup_bot_config(bot, logger):
     logger.console.debug("Loading bot config")
     # ...
 ```
+
+## Delayed logs
+
+To avoid rate limiting issues, you can delay log events using a delayed logger.
+
+```py
+from discord.ext import commands
+import botlogging
+
+logger = botlogging.DelayedLogger(bot=bot, name="mybot")
+```
+
+## Custom embeds
+
+You can override the embeds sent to Discord by passing in your own embeds.
+
+```py
+# create a custom embed
+embed = discord.Embed(description="Custom embed!")
+embed.add_field(name="Some custom field", value="some custom value")
+
+await logger.info("Executing echo command", send=True, channel=logging_channel, embed=embed)
+```
+
+Note: this still adds in base formatting to the embed such as color and title.
