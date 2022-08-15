@@ -4,39 +4,46 @@ import discord
 
 
 class LogEmbed(discord.Embed):
+    """Base log event embed."""
+
     title = None
     color = None
 
     def __init__(self, message):
-        super().__init__(title=self.title.upper(), description=message, color=self.color)
+        super().__init__(
+            title=self.title.upper(), description=message, color=self.color
+        )
 
 
 class InfoEmbed(LogEmbed):
+    """Embed for info level log events."""
+
     title = "info"
     color = discord.Color.green()
 
 
 class DebugEmbed(LogEmbed):
+    """Embed for debug level log events."""
+
     title = "debug"
     color = discord.Color.dark_green()
 
 
 class WarningEmbed(LogEmbed):
+    """Embed for warning level log events."""
+
     title = "warning"
     color = discord.Color.gold()
 
 
 class ErrorEmbed(LogEmbed):
+    """Embed for error level log events."""
+
     title = "error"
     color = discord.Color.red()
 
 
-class EventEmbed(LogEmbed):
-    title = "event"
-    color = discord.Color.blurple()
-
-
-def generate_log_embed(message, level):
+def from_level_name(message, level):
     """Wrapper for generating a log embed.
 
     parameters:
@@ -52,8 +59,6 @@ def generate_log_embed(message, level):
         embed_cls = WarningEmbed
     elif level == "error":
         embed_cls = ErrorEmbed
-    elif level == "event":
-        embed_cls = EventEmbed
     else:
         raise ValueError("invalid log level provided")
 
