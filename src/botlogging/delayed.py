@@ -3,7 +3,7 @@
 
 import asyncio
 
-from botlog import logger
+from botlogging import logger
 
 
 class DelayedLogger(logger.BotLogger):

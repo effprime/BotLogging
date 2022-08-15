@@ -7,7 +7,7 @@ import traceback
 
 import discord
 
-import botlog.embed as embed_lib
+import botlogging.embed as embed_lib
 
 
 class BotLogger:
