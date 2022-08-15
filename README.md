@@ -50,19 +50,6 @@ async def run(ctx):
     await ctx.send(content=input)
 ```
 
-### Event
-
-Additionally, there is an `event` level for handling Discord events.
-
-```py
-async def on_member_update(before, after):
-    await logger.event(
-        "member_update", before=before, after=after, send=True, channel=logging_channel
-    )
-```
-
-The logger has built-in rendering of Discord events like `member_update`, so it is useful to hook the logger to all these events (see: https://discordpy.readthedocs.io/en/latest/api.html#event-reference)
-
 ## Console
 
 If you just want to log to the standard logging console, you can still reference it with the bot logger. This is useful because it is not an async method and can be used in synchronous code.
@@ -72,13 +59,3 @@ def setup_bot_config(bot, logger):
     logger.console.debug("Loading bot config")
     # ...
 ```
-
-## Log Queue
-
-Sending to Discord naturally makes one afraid of being rate limited by the Discord API. Unlike in the previous examples where the logger handles events right away, you can provide a `queue_wait` input (in seconds) to the constructor to store events in an in-memory queue, picking them off one-by-one.
-
-```py
-logger = botlog.BotLogger(bot=bot, name="mybot", queue_wait=1)
-```
-
-This will auto-queue the messages without you having to do anything differently.
