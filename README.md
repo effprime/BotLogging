@@ -71,6 +71,12 @@ import botlogging
 logger = botlogging.DelayedLogger(bot=bot, name="mybot")
 ```
 
+then within your event loop, run
+
+```py
+logger.register_queue()
+```
+
 ## Custom embeds
 
 You can override the embeds sent to Discord by passing in your own embeds.
